@@ -91,3 +91,6 @@ names_pretty <- tribble(
   'racing_point', 'Racing Point',
   'sauber', 'Sauber'
 )
+
+# mute colors to pre-specified level
+mute_color <- function(color) scales::muted(color, 70, 100)
