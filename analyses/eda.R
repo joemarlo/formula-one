@@ -1,9 +1,29 @@
 library(tidyverse)
 source('analyses/plots/ggplot_settings.R')
+source('analyses/helpers.R')
 
 # read in the data
 lap_leaders <- read_csv('data/lap_leaders.csv')
 
+# mercedes wins in hybrid era
+lap_leaders %>%
+  group_by(raceId) %>% 
+  filter(lap_num == max(lap_num)) %>% 
+  ungroup() %>% 
+  filter(year >= 2014) %>% 
+  summarize(mean(constructor_pretty == 'Mercedes'))
+
+# changes in race lead
+lap_leaders %>%
+  group_by(date, raceId) %>% 
+  mutate(lead_change = driverRef != lag(driverRef)) %>% 
+  summarize(lead_changes = sum(lead_change, na.rm = TRUE),
+            .groups = 'drop') %>% 
+  mutate(mean = zoo::rollmean(lead_changes, k = 60, align = 'right', na.pad = TRUE)) %>% 
+  ggplot(aes(x = date, y = mean)) +
+  geom_line() +
+  labs(title = "Changes in race lead")
+  
 # plot all the races 2010+
 lap_leaders %>% 
   filter(year >= 2010) %>% 
@@ -12,7 +32,7 @@ lap_leaders %>%
   scale_y_discrete(labels = NULL) +
   scale_fill_manual(values = team_colors) +
   facet_wrap(~year, ncol = 3, scales = 'free') +
-  labs(title = 'Race leader by lap',
+  labs(title = 'Constructor leader by lap',
        caption = 'Data from ergast\nmarlo.works',
        x = 'Lap number',
        y = NULL,
@@ -37,7 +57,7 @@ lap_leaders %>%
   scale_y_discrete(labels = NULL) +
   scale_fill_manual(values = team_colors) +
   facet_wrap(~year, ncol = 3, scales = 'free') +
-  labs(title = 'Race leader by lap',
+  labs(title = 'Constructor leader by lap',
        caption = 'Data from ergast\nmarlo.works',
        x = 'Laps from end',
        y = NULL,
@@ -61,7 +81,7 @@ lap_leaders %>%
 # calculate rolling entropy
 entropy_rolling <- lap_leaders %>% 
   group_by(date, year, raceId) %>% 
-  summarize(entropy = sequenchr::shannon_entropy(driverRef),
+  summarize(entropy = entropy(driverRef),
             .groups = 'drop') %>% 
   mutate(mean = zoo::rollmean(entropy, k = 60, align = 'right', na.pad = TRUE))
   
@@ -98,7 +118,7 @@ entropy_rolling %>%
             aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
             alpha = 0.3, fill = mute_color("#00D2BE")) +
   geom_text(data = tibble(x = as.Date(c('2002-01-01', '2012-01-01', '2017-06-01')),
-                           y = rep(0.7),
+                           y = rep(1.65),
                            label = c("Ferrari", "Red Bull", "Mercedes")),
             aes(x = x, y = y, label = label),
             color = 'grey75', size = 10, angle = -90, fontface = 'bold') +
@@ -106,7 +126,7 @@ entropy_rolling %>%
   scale_x_date(date_breaks = '1 year', date_labels = '%Y') +
   coord_cartesian(xlim = c(as.Date('1999-06-01'), as.Date('2021-05-01'))) +
   labs(title = 'Entropy of the race lead position',
-       subtitle = '60 race (~3 seasons) rolling mean',
+       subtitle = '60 race (~3 seasons) trailing rolling mean',
        caption = 'Data from ergast\nmarlo.works',
        x = NULL,
        y = NULL) +
@@ -128,10 +148,11 @@ lap_leaders %>%
   geom_line() +
   scale_x_date(date_breaks = '1 year', date_labels = '%Y') +
   labs(title = 'Entropy of the last 10% of the race',
-       subtitle = '60 race (~3 seasons) rolling mean',
+       subtitle = '60 race (~3 seasons) trailing rolling mean',
        caption = 'Data from ergast',
        x = NULL,
        y = NULL) +
   theme(axis.text.x = element_text(angle = 40, hjust = 1))
 
 # how to measure midfield?
+

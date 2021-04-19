@@ -1,6 +1,7 @@
 library(tidyverse)
 library(TraMineR)
 source('analyses/plots/ggplot_settings.R')
+source('analyses/plots/helpers.R')
 
 # read in the data
 lap_leaders <- read_csv('data/lap_leaders.csv')
