@@ -92,28 +92,36 @@ entropy_rolling <- lap_leaders %>%
   arrange(date) %>%
   mutate(mean = zoo::rollmean(entropy, k = 60, align = 'right', na.pad = TRUE))
   
+## plot rolling average of entropy
+p_data <- entropy_rolling %>% 
+  arrange(date) %>% 
+  mutate(newRaceId = group_indices(., date))
+p_labels <- p_data %>% 
+  distinct(date, year, newRaceId) %>% 
+  group_by(year) %>% 
+  mutate(year = ifelse(date == min(date), year, NA)) %>% 
+  ungroup()
 # create summaries of each constructor era
-era_ferrari <- lap_leaders %>% 
+era_ferrari <- p_data %>% 
   filter(year %in% 1999:2004) %>% 
-  summarize(xmin = min(date),
-            xmax = max(date),
+  summarize(xmin = min(newRaceId),
+            xmax = max(newRaceId),
             ymin = min(entropy_rolling$mean, na.rm = TRUE)*1/1.1,
             ymax = max(entropy_rolling$mean, na.rm = TRUE)*1.1)
-era_red_bull <- lap_leaders %>% 
+era_red_bull <- p_data %>% 
   filter(year %in% 2010:2013) %>% 
-  summarize(xmin = min(date),
-            xmax = max(date),
+  summarize(xmin = min(newRaceId),
+            xmax = max(newRaceId),
             ymin = min(entropy_rolling$mean, na.rm = TRUE)*1/1.1,
             ymax = max(entropy_rolling$mean, na.rm = TRUE)*1.1)
-era_mercedes <- lap_leaders %>% 
+era_mercedes <- p_data %>% 
   filter(year %in% 2014:2020) %>% 
-  summarize(xmin = min(date),
-            xmax = max(date),
+  summarize(xmin = min(newRaceId),
+            xmax = max(newRaceId),
             ymin = min(entropy_rolling$mean, na.rm = TRUE)*1/1.1,
             ymax = max(entropy_rolling$mean, na.rm = TRUE)*1.1)
-
-# plot rolling average of entropy
-entropy_rolling %>% 
+# plot it
+p_data %>% 
   ggplot() +
   geom_rect(data = era_ferrari,
             aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
@@ -124,14 +132,15 @@ entropy_rolling %>%
   geom_rect(data = era_mercedes,
             aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
             alpha = 0.3, fill = mute_color("#00D2BE")) +
-  geom_text(data = tibble(x = as.Date(c('2002-01-01', '2012-01-01', '2017-06-01')),
-                           y = rep(1.65),
-                           label = c("Ferrari", "Red Bull", "Mercedes")),
+  geom_text(data = tibble(x = c(100, 278, 380),
+                          y = rep(1.65),
+                          label = c("Ferrari", "Red Bull", "Mercedes")),
             aes(x = x, y = y, label = label),
             color = 'grey95', size = 15, angle = -90, fontface = 'bold') +
-  geom_line(aes(x = date, y = mean), color = 'grey30', size = 0.9) +
-  scale_x_date(date_breaks = '1 year', date_labels = '%Y') +
-  coord_cartesian(xlim = c(as.Date('1999-06-01'), as.Date('2021-05-01'))) +
+  geom_line(aes(x = newRaceId, y = mean), color = 'grey30', size = 0.9) +
+  scale_x_continuous(labels = p_labels$year[!is.na(p_labels$year)], 
+                     breaks = which(!is.na(p_labels$year))) +
+  coord_cartesian(xlim = c(50, 454)) +
   labs(title = 'Race excitement falls mid-decade',
        subtitle = 'Entropy of the race lead position. 60 race (~3 seasons) trailing rolling mean.',
        caption = 'Data from ergast\nmarlo.works',
@@ -212,7 +221,6 @@ entropy_by_position <- lap_times %>%
 
 # plot the entropy by position by race
 p_data <- entropy_by_position %>% 
-  filter(position < 21) %>%
   arrange(date) %>% 
   mutate(newRaceId = group_indices(., date))
 p_labels <- p_data %>% 
