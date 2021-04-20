@@ -21,6 +21,11 @@ entropy(x)
 x <- c("A", "A", "B", "B")
 entropy(x)
 
+get_mode <- function(x) {
+  uniq <- unique(x)
+  mode <- uniq[which.max(tabulate(match(x, uniq)))]
+  return(mode)
+}
 
 # create list of the colors by team
 team_colors <- c(

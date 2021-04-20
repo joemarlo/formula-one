@@ -1,7 +1,8 @@
 library(tidyverse)
 library(TraMineR)
+library(sequenchr)
 source('analyses/plots/ggplot_settings.R')
-source('analyses/plots/helpers.R')
+source('analyses/helpers.R')
 
 # read in the data
 lap_leaders <- read_csv('data/lap_leaders.csv')
@@ -21,8 +22,26 @@ lap_leaders_seq <- seqdef(
   labels = labels,
   xtstep = 1)
 
+# launch sequenchr
+# launch_sequenchr(lap_leaders_seq)
+
 # compute optimal matching distances
 dist_mat <- seqdist(lap_leaders_seq, method = "OM", sm = "TRATE", with.missing = TRUE)
+
+
+# outliers ----------------------------------------------------------------
+
+# hist of distances
+hist(dist_mat[lower.tri(dist_mat)])
+
+# which race has the highest average distance? ie the most dissimilar
+# most_dissimilar <- lap_leaders_wide[which.max(rowMeans(dist_mat)),]
+most_dissimilar <- tibble(raceId = lap_leaders_wide$raceId,
+       dist_mean = rowMeans(dist_mat)) %>% 
+  slice_max(order_by = dist_mean, n = 10)
+  
+
+# clustering --------------------------------------------------------------
 
 # cluster the data
 cluster_model <- fastcluster::hclust(as.dist(dist_mat), method = "ward.D2")
@@ -50,6 +69,15 @@ clusters <- tibble(
   left_join(lap_leaders[, c('raceId', 'year')]) 
 
 hist(clusters$cluster)
+
+# clusters by modal sequence
+lap_leaders %>% 
+  left_join(clusters, by = 'raceId') %>% 
+  group_by(cluster, lap_num) %>% 
+  summarize(driverRef = get_mode(driverRef)) %>% 
+  ggplot(aes(x = lap_num, y = cluster, fill = driverRef)) +
+  geom_tile(color = 'white') +
+  labs(title = 'Modal sequences by cluster')
 
 # distribution of cluster membership by year; could be misleading b/c of smoothing
 clusters %>% 

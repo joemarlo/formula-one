@@ -19,10 +19,14 @@ lap_leaders %>%
   mutate(lead_change = driverRef != lag(driverRef)) %>% 
   summarize(lead_changes = sum(lead_change, na.rm = TRUE),
             .groups = 'drop') %>% 
+  arrange(date) %>%
   mutate(mean = zoo::rollmean(lead_changes, k = 60, align = 'right', na.pad = TRUE)) %>% 
   ggplot(aes(x = date, y = mean)) +
   geom_line() +
-  labs(title = "Changes in race lead")
+  labs(title = "Changes in race lead",
+       subtitle = '60 race (~3 seasons) trailing rolling mean',
+       x = NULL,
+       y = NULL)
   
 # plot all the races 2010+
 lap_leaders %>% 
@@ -32,7 +36,7 @@ lap_leaders %>%
   scale_y_discrete(labels = NULL) +
   scale_fill_manual(values = team_colors) +
   facet_wrap(~year, ncol = 3, scales = 'free') +
-  labs(title = 'Constructor leader by lap',
+  labs(title = 'Constructor lead by race lap',
        caption = 'Data from ergast\nmarlo.works',
        x = 'Lap number',
        y = NULL,
@@ -69,7 +73,7 @@ lap_leaders %>%
 # entropy of races over time
 lap_leaders %>% 
   group_by(year, raceId) %>% 
-  summarize(entropy = sequenchr::shannon_entropy(driverRef),
+  summarize(entropy = entropy(driverRef),
             .groups = 'drop') %>% 
   ggplot(aes(x = year, y = entropy, group = year)) +
   geom_boxplot() +
@@ -83,6 +87,7 @@ entropy_rolling <- lap_leaders %>%
   group_by(date, year, raceId) %>% 
   summarize(entropy = entropy(driverRef),
             .groups = 'drop') %>% 
+  arrange(date) %>%
   mutate(mean = zoo::rollmean(entropy, k = 60, align = 'right', na.pad = TRUE))
   
 # create summaries of each constructor era
@@ -121,7 +126,7 @@ entropy_rolling %>%
                            y = rep(1.65),
                            label = c("Ferrari", "Red Bull", "Mercedes")),
             aes(x = x, y = y, label = label),
-            color = 'grey75', size = 10, angle = -90, fontface = 'bold') +
+            color = 'grey80', size = 15, angle = -90, fontface = 'bold') +
   geom_line(aes(x = date, y = mean), color = 'grey30', size = 0.9) +
   scale_x_date(date_breaks = '1 year', date_labels = '%Y') +
   coord_cartesian(xlim = c(as.Date('1999-06-01'), as.Date('2021-05-01'))) +
@@ -143,6 +148,7 @@ lap_leaders %>%
   group_by(date, year, raceId) %>% 
   summarize(entropy = sequenchr::shannon_entropy(driverRef),
             .groups = 'drop') %>% 
+  arrange(date) %>%
   mutate(mean = zoo::rollmean(entropy, k = 60, align = 'right', na.pad = TRUE)) %>% 
   ggplot(aes(x = date, y = mean)) +
   geom_line() +
@@ -154,5 +160,49 @@ lap_leaders %>%
        y = NULL) +
   theme(axis.text.x = element_text(angle = 40, hjust = 1))
 
-# how to measure midfield?
+# top 5 most exciting races
+top_five <- entropy_rolling %>% 
+  slice_max(entropy, n = 5) 
+top_five %>% 
+  inner_join(lap_leaders, by = 'raceId') %>% 
+  # group_by(raceId) %>% filter(lap_num == max(lap_num))
+  left_join(tibble(
+    raceId = top_five$raceId,
+    label = c("1. Raikkonen @ Australia 2013", "2. Kubica @ Canada 2008", "3. Hamilton @ China 2011", "4. Alonso @ Japan 2008", "5. Raikkonen win @ Japan 2005")
+  ), by = 'raceId') %>%
+  mutate(driver_clean = str_replace_all(driverRef, "_", " "),
+         driver_clean = str_to_title(driver_clean)) %>% 
+  ggplot(aes(x = lap_num, y = reorder(label, -entropy), fill = driver_clean)) +
+  geom_tile(color = 'white') +
+  # scale_y_discrete(labels = NULL) +
+  # scale_fill_manual(values = team_colors) +
+  labs(title = "Top five 'most exciting' races by entropy",
+       caption = 'Data from ergast\nmarlo.works',
+       x = 'Lap number',
+       y = NULL,
+       fill = NULL) +
+  theme(legend.position = 'bottom',
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank())
+# ggsave('analyses/plots/top_five.png', width = 8, height = 5)
 
+# top 5 least exciting races
+entropy_rolling %>% 
+  slice_min(entropy, n = 5)
+
+# how to measure midfield? entropy of each position
+# TODO
+entropy_by_position <- lap_times %>% 
+  na.omit() %>% 
+  left_join(distinct(lap_leaders, raceId, driverId, year, date), by = c('raceId', 'driverId')) %>% 
+  filter(year < 2021) %>% 
+  group_by(year, date, raceId, position) %>% 
+  summarize(entropy = entropy(driverId),
+            .groups = 'drop')
+entropy_by_position %>% 
+  filter(position < 21) %>%
+  # arrange(desc(date)) %>% 
+  # mutate(mean = zoo::rollmean(entropy, k = 60, align = 'right', na.pad = TRUE)) %>%
+  ggplot(aes(x = year, y = entropy, group = year)) +
+  geom_boxplot() +
+  facet_wrap(~position)
